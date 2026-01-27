@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pgcopylib"
-version = "0.2.3.2"
+version = "0.2.3.3"
 description = "PGCopy bynary dump parser."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -21,11 +21,11 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
 ]
-dependencies = []
+dependencies = ["python-dateutil>=2.8.0"]
 
 [project.urls]
 Homepage = "https://github.com/0xMihalich/pgcopylib"
-Documentation = "https://github.com/0xMihalich/pgcopylib#readme"
+Documentation = "https://0xmihalich.github.io/dbhose_airflow/base_modules/pgcopylib/index.html"
 Repository = "https://github.com/0xMihalich/pgcopylib"
 Changelog = "https://github.com/0xMihalich/pgcopylib/blob/main/CHANGELOG.md"
 

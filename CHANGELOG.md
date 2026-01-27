@@ -1,5 +1,11 @@
 # Version History
 
+## 0.2.3.3
+
+* Change documentation link
+* Add requirements.txt
+* Add depends python-dateutil>=2.8.0
+
 ## 0.2.3.2
 
 * Delete BufferObject
