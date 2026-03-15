@@ -1,5 +1,11 @@
 # Version History
 
+## 0.2.4.dev0
+
+* Developer release (not public to pip)
+* Improve errors when write integers from floats and Decimals
+* Update README.md
+
 ## 0.2.3.3
 
 * Change documentation link

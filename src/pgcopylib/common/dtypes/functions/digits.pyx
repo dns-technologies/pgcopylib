@@ -51,7 +51,9 @@ cpdef bytes write_oid(
 ):
     """Pack oid value."""
 
-    return pack("!I", <unsigned long>dtype_value)
+    cdef unsigned long int_value = <unsigned long>round(dtype_value)
+
+    return pack("!I", int_value)
 
 
 cpdef unsigned short read_serial2(
@@ -73,7 +75,9 @@ cpdef bytes write_serial2(
 ):
     """Pack serial2 value."""
 
-    return pack("!H", <unsigned short>dtype_value)
+    cdef unsigned short int_value = <unsigned short>round(dtype_value)
+
+    return pack("!H", int_value)
 
 
 cpdef unsigned long read_serial4(
@@ -95,7 +99,9 @@ cpdef bytes write_serial4(
 ):
     """Pack serial4 value."""
 
-    return pack("!L", <unsigned long>dtype_value)
+    cdef unsigned long int_value = <unsigned long>round(dtype_value)
+
+    return pack("!L", int_value)
 
 
 cpdef unsigned long long read_serial8(
@@ -117,7 +123,9 @@ cpdef bytes write_serial8(
 ):
     """Pack serial8 value."""
 
-    return pack("!Q", <unsigned long long>dtype_value)
+    cdef unsigned long long int_value = <unsigned long long>round(dtype_value)
+
+    return pack("!Q", int_value)
 
 
 cpdef short read_int2(
@@ -139,7 +147,9 @@ cpdef bytes write_int2(
 ):
     """Pack int2 value."""
 
-    return pack("!h", <short>dtype_value)
+    cdef short int_value = <short>round(dtype_value)
+
+    return pack("!h", int_value)
 
 
 cpdef long read_int4(
@@ -161,7 +171,9 @@ cpdef bytes write_int4(
 ):
     """Pack int4 value."""
 
-    return pack("!l", <long>dtype_value)
+    cdef long int_value = <long>round(dtype_value)
+
+    return pack("!l", int_value)
 
 
 cpdef long long read_int8(
@@ -183,7 +195,9 @@ cpdef bytes write_int8(
 ):
     """Pack int8 value."""
 
-    return pack("!q", <long long>dtype_value)
+    cdef long long int_value = <long long>round(dtype_value)
+
+    return pack("!q", int_value)
 
 
 cpdef double read_money(
@@ -205,7 +219,9 @@ cpdef bytes write_money(
 ):
     """Pack money value."""
 
-    return write_int8(<long long>round(dtype_value / 0.01))
+    cdef long long int_value = <long long>round(dtype_value / 0.01)
+
+    return write_int8(int_value)
 
 
 cpdef float read_float4(
