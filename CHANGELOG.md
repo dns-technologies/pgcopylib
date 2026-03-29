@@ -21,7 +21,6 @@
 * Remove Cython source code from wheel package
 * Change PGCopyReader and PGCopyWriter `__repr__`() method
 
-
 ## 0.2.4.dev0
 
 * Developer release (not public to pip)
