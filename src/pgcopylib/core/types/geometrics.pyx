@@ -57,6 +57,10 @@ cpdef list read_lseg(
     """Unpack lseg value."""
 
     cdef double x1, y1, x2, y2
+
+    if len(binary_data) < 32:
+        return [(0.0, 0.0), (0.0, 0.0)]
+
     x1, y1, x2, y2 = unpack("!4d", binary_data)
     return [(x1, y1), (x2, y2)]
 
@@ -68,7 +72,7 @@ cpdef bytes write_lseg(
     object pgoid = None,
 ):
     """Pack lseg value."""
-
+    
     return pack("!4d", *dtype_value[0], *dtype_value[1])
 
 
@@ -81,19 +85,30 @@ cpdef ((double, double), (double, double)) read_box(
     """Unpack box value."""
 
     cdef double x1, y1, x2, y2
-    x1, y1, x2, y2 = unpack("!4d", binary_data)
-    return (x1, y1), (x2, y2)
+
+    if len(binary_data) < 32:
+        return ((0.0, 0.0), (0.0, 0.0))
+
+    x1 = unpack("!d", binary_data[0:8])[0]
+    y1 = unpack("!d", binary_data[8:16])[0]
+    x2 = unpack("!d", binary_data[16:24])[0]
+    y2 = unpack("!d", binary_data[24:32])[0]
+
+    return ((x1, y1), (x2, y2))
 
 
 cpdef bytes write_box(
-    ((double, double), (double, double)) dtype_value,
+    object dtype_value,
     object pgoid_function = None,
     object buffer_object = None,
     object pgoid = None,
 ):
     """Pack box value."""
 
-    return pack("!4d", *dtype_value[0], *dtype_value[1])
+    return pack("!dddd",
+        dtype_value[0][0], dtype_value[0][1],
+        dtype_value[1][0], dtype_value[1][1]
+    )
 
 
 cpdef object read_path(
@@ -105,23 +120,30 @@ cpdef object read_path(
     """Unpack path value."""
 
     cdef bint is_closed
-    cdef int length
-    cdef tuple coords_data
+    cdef int num_points
     cdef list path_data = []
     cdef long i
+    cdef double x, y
 
-    is_closed = unpack("!?", binary_data[:1])[0]
-    length = unpack("!l", binary_data[1:5])[0]
+    if len(binary_data) < 8:
+        return []
 
-    cdef long coords_count = (len(binary_data) - 5) // 8
-    coords_data = unpack(f"!{coords_count}d", binary_data[5:])
+    is_closed = unpack("!i", binary_data[:4])[0]
+    num_points = unpack("!i", binary_data[4:8])[0]
 
-    for i in range(0, coords_count, 2):
-        if i + 1 < coords_count:
-            path_data.append((coords_data[i], coords_data[i + 1]))
+    for i in range(num_points):
+        offset = 8 + i * 16
+
+        if offset + 16 > len(binary_data):
+            break
+
+        x = unpack("!d", binary_data[offset:offset + 8])[0]
+        y = unpack("!d", binary_data[offset + 8:offset + 16])[0]
+        path_data.append((x, y))
 
     if is_closed:
         return tuple(path_data)
+
     return path_data
 
 
@@ -133,23 +155,16 @@ cpdef bytes write_path(
 ):
     """Pack path value."""
 
-    cdef bint is_closed = isinstance(dtype_value, tuple)
-    cdef short length = len(dtype_value)
-    cdef list path_data = []
-    cdef short i
+    cdef int is_closed = 1 if isinstance(dtype_value, tuple) else 0
+    cdef int num_points = len(dtype_value)
+    cdef list coords = []
     cdef object point
 
-    for i in range(length):
-        point = dtype_value[i]
-        path_data.append(point[0])
-        path_data.append(point[1])
+    for point in dtype_value:
+        coords.append(point[0])
+        coords.append(point[1])
 
-    return pack(
-        f"?l{len(path_data)}d",
-        is_closed,
-        length,
-        *path_data
-    )
+    return pack(f"!ii{num_points * 2}d", is_closed, num_points, *coords)
 
 
 cpdef tuple read_polygon(
@@ -160,18 +175,23 @@ cpdef tuple read_polygon(
 ):
     """Unpack polygon value."""
 
-    cdef int length
-    cdef tuple coords_data
-    cdef list points = []
-    cdef short i
-    length = unpack("!l", binary_data[:4])[0]
-    cdef short coords_count = (len(binary_data) - 4) // 8
-    coords_data = unpack(f"!{coords_count}d", binary_data[4:])
+    if len(binary_data) < 4:
+        return ()
 
-    for i in range(0, coords_count, 2):
-        points.append((coords_data[i], coords_data[i + 1]))
+    cdef int num_points = unpack("!i", binary_data[:4])[0]
+    cdef list coords = []
+    cdef long i
+    cdef double x, y
 
-    return tuple(points)
+    for i in range(num_points):
+        offset = 4 + i * 16
+        if offset + 16 > len(binary_data):
+            break
+        x = unpack("!d", binary_data[offset:offset + 8])[0]
+        y = unpack("!d", binary_data[offset + 8:offset + 16])[0]
+        coords.append((x, y))
+
+    return tuple(coords)
 
 
 cpdef bytes write_polygon(
@@ -182,17 +202,37 @@ cpdef bytes write_polygon(
 ):
     """Pack polygon value."""
 
-    cdef short length = len(dtype_value)
-    cdef list path_data = []
-    cdef short i
-    cdef tuple point
+    cdef int num_points = len(dtype_value)
+    cdef list coords = []
+    cdef object point
 
-    for i in range(length):
-        point = dtype_value[i]
-        path_data.extend(point)
+    for point in dtype_value:
+        coords.append(point[0])
+        coords.append(point[1])
 
-    return pack(
-        f"l{len(path_data)}d",
-        length,
-        *path_data
-    )
+    return pack(f"!i{num_points * 2}d", num_points, *coords)
+
+
+cpdef tuple read_circle(
+    bytes binary_data,
+    object pgoid_function = None,
+    object buffer_object = None,
+    object pgoid = None,
+):
+    """Unpack circle value."""
+
+    if len(binary_data) < 24:
+        return (0.0, 0.0, 0.0)
+
+    return unpack("!ddd", binary_data)
+
+
+cpdef bytes write_circle(
+    tuple dtype_value,
+    object pgoid_function = None,
+    object buffer_object = None,
+    object pgoid = None,
+):
+    """Pack circle value."""
+
+    return pack("!ddd", *dtype_value)

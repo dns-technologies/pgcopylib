@@ -41,7 +41,7 @@ cpdef ((double, double), (double, double)) read_box(
     object pgoid=*,
 )
 cpdef bytes write_box(
-    ((double, double), (double, double)) dtype_value,
+    object dtype_value,
     object pgoid_function=*,
     object buffer_object=*,
     object pgoid=*,
@@ -65,6 +65,18 @@ cpdef tuple read_polygon(
     object pgoid=*,
 )
 cpdef bytes write_polygon(
+    tuple dtype_value,
+    object pgoid_function=*,
+    object buffer_object=*,
+    object pgoid=*,
+)
+cpdef tuple read_circle(
+    bytes binary_data,
+    object pgoid_function=*,
+    object buffer_object=*,
+    object pgoid=*,
+)
+cpdef bytes write_circle(
     tuple dtype_value,
     object pgoid_function=*,
     object buffer_object=*,

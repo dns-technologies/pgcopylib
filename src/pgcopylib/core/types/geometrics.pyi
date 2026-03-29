@@ -128,3 +128,25 @@ def write_polygon(
     """Pack polygon value."""
 
     ...
+
+
+def read_circle(
+    binary_data: bytes,
+    pgoid_function: object | None = None,
+    buffer_object: object | None = None,
+    pgoid: int | None = None,
+) -> tuple[float, ...]:
+    """Unpack polygon value."""
+
+    ...
+
+
+def write_circle(
+    dtype_value: tuple[float, ...],
+    pgoid_function: object | None = None,
+    buffer_object: object | None = None,
+    pgoid: int | None = None,
+) -> bytes:
+    """Pack polygon value."""
+
+    ...

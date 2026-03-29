@@ -16,12 +16,13 @@ from ipaddress import (
 from typing import NamedTuple
 from types import FunctionType
 
-from .functions import (
+from .types import (
     read_array,
     read_bits,
     read_bool,
     read_box,
     read_bytea,
+    read_circle,
     read_date,
     read_float4,
     read_float8,
@@ -54,6 +55,7 @@ from .functions import (
     write_bool,
     write_box,
     write_bytea,
+    write_circle,
     write_date,
     write_float4,
     write_float8,
@@ -103,7 +105,7 @@ class PostgreSQLDtype(PGTypeFunc, Enum):
     Box = PGTypeFunc("Box", tuple, 32, read_box, write_box)
     Bytes = PGTypeFunc("Bytes", bytes, -1, read_bytea, write_bytea)
     Cidr = PGTypeFunc("Cidr", IP4N | IP6N, -1, read_network, write_network)
-    Circle = PGTypeFunc("Circle", tuple, 24, read_line, write_line)
+    Circle = PGTypeFunc("Circle", tuple, 24, read_circle, write_circle)
     Date = PGTypeFunc("Date", date, 4, read_date, write_date)
     Float4 = PGTypeFunc("Float4", float, 4, read_float4, write_float4)
     Float8 = PGTypeFunc("Float8", float, 8, read_float8, write_float8)

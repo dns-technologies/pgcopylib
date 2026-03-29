@@ -71,7 +71,7 @@ cpdef bytes write_network(
         ip_netmask = dtype_value._prefixlen
         is_cidr = 1
 
-    ip_family = IpAddr[dtype_value]
+    ip_family = IpAddr[dtype_value.__class__]
     ip_length = len(ip_addr)
 
     return pack(

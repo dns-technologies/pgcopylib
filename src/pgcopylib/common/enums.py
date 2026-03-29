@@ -1,6 +1,6 @@
 from enum import Enum
 
-from .dtypes import PostgreSQLDtype
+from ..core.dtype import PostgreSQLDtype
 
 
 class PGOid(Enum):

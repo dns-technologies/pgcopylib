@@ -12,6 +12,8 @@ from struct import (
     unpack_from,
 )
 
+from pgcopylib.core.errors import PGCopyTypeError
+
 
 cdef object DEFAULT_DATE = date(2000, 1, 1)
 cdef object DEFAULT_DATETIME = datetime(2000, 1, 1)
@@ -68,15 +70,25 @@ cpdef bytes write_timestamp(
 ):
     """Pack timestamp value."""
 
+    cdef long long microseconds
+
     if dtype_value.__class__.__name__ == "Timestamp":
         dtype_value = dtype_value.to_pydatetime()
     elif dtype_value.__class__ is date:
         dtype_value = datetime.combine(dtype_value, datetime.min.time())
 
-    cdef object dt_utc = dtype_value.astimezone(timezone.utc)
-    cdef object dt = dt_utc.replace(tzinfo=None)
-    cdef long long seconds = (dt - DEFAULT_DATETIME).total_seconds()
-    cdef long long microseconds = seconds * MICROSECONDS_PER_SECOND
+    if dtype_value.__class__ is not datetime:
+        raise PGCopyTypeError(f"Expected datetime, got {type(dtype_value)}")
+
+    if dtype_value.tzinfo is not None:
+        dtype_value = (
+            dtype_value.astimezone(timezone.utc).replace(tzinfo=None)
+        )
+    
+    microseconds = int(
+        (dtype_value - DEFAULT_DATETIME).total_seconds() *
+        MICROSECONDS_PER_SECOND
+    )
     return pack("!q", microseconds)
 
 
@@ -99,7 +111,21 @@ cpdef bytes write_timestamptz(
 ):
     """Pack timestamptz value."""
 
-    return write_timestamp(dtype_value.astimezone(timezone.utc))
+    if dtype_value.__class__.__name__ == "Timestamp":
+        dtype_value = dtype_value.to_pydatetime()
+
+    if not hasattr(dtype_value, 'astimezone'):
+        raise PGCopyTypeError(
+            f"Expected datetime with tzinfo, got {type(dtype_value)}",
+        )
+
+    if dtype_value.tzinfo is not None:
+        dt_utc = dtype_value.astimezone(timezone.utc)
+    else:
+        dt_utc = dtype_value.replace(tzinfo=timezone.utc)
+
+    dt_utc_naive = dt_utc.replace(tzinfo=None)
+    return write_timestamp(dt_utc_naive)
 
 
 cpdef object read_time(
@@ -137,20 +163,30 @@ cpdef bytes write_time(
 
     if dtype_value.__class__ is timedelta:
         total_microseconds = int(
-            dtype_value.total_seconds() * MICROSECONDS_PER_SECOND
+            dtype_value.total_seconds() *
+            MICROSECONDS_PER_SECOND
         )
         total_microseconds = total_microseconds % (
-            HOURS_PER_DAY * SECONDS_PER_HOUR * MICROSECONDS_PER_SECOND
+            HOURS_PER_DAY *
+            SECONDS_PER_HOUR *
+            MICROSECONDS_PER_SECOND
         )
     elif dtype_value.__class__ is time:
+        if dtype_value.tzinfo is not None:
+            dummy_date = date(2000, 1, 1)
+            dt = datetime.combine(dummy_date, dtype_value)
+            dt_utc = dt.astimezone(timezone.utc)
+            dtype_value = dt_utc.timetz().replace(tzinfo=None)
+
         total_microseconds = (
             (dtype_value.hour * SECONDS_PER_HOUR * MICROSECONDS_PER_SECOND) +
             (dtype_value.minute * SECONDS_PER_MINUTE *
-            MICROSECONDS_PER_SECOND) + (dtype_value.second *
-            MICROSECONDS_PER_SECOND) + dtype_value.microsecond
+            MICROSECONDS_PER_SECOND) +
+            (dtype_value.second * MICROSECONDS_PER_SECOND) +
+            dtype_value.microsecond
         )
     else:
-        raise ValueError(
+        raise PGCopyTypeError(
             "dtype_value must be datetime.time or datetime.timedelta",
         )
 
@@ -206,7 +242,7 @@ cpdef bytes write_timetz(
             tz_offset = dtype_value.tzinfo.utcoffset(None)
             offset = int(tz_offset.total_seconds())
     else:
-        raise ValueError(
+        raise PGCopyTypeError(
             "dtype_value must be datetime.time or datetime.timedelta",
         )
 
@@ -223,8 +259,17 @@ cpdef object read_interval(
 
     cdef long long microseconds
     cdef int days, months
+
+    if len(binary_data) < 16:
+        return relativedelta()
+
     microseconds, days, months = unpack("!qii", binary_data)
-    return relativedelta(months=months, days=days, microseconds=microseconds)
+    result = relativedelta(
+        months=months,
+        days=days,
+        microseconds=microseconds,
+    )
+    return result
 
 
 cpdef bytes write_interval(
@@ -235,25 +280,20 @@ cpdef bytes write_interval(
 ):
     """Pack interval value."""
 
-    cdef long long days = dtype_value.days or 0
-    cdef long long months = dtype_value.months or 0
-    cdef long long hours = dtype_value.hours or 0
-    cdef long long minutes = dtype_value.minutes or 0
-    cdef long long seconds = dtype_value.seconds or 0
-    cdef long long microseconds = dtype_value.microseconds or 0
-    cdef long long hour_per_microsecond = (
-        hours * SECONDS_PER_HOUR * MICROSECONDS_PER_SECOND
-    )
-    cdef long long minute_per_microsecond = (
-        minutes * SECONDS_PER_MINUTE * MICROSECONDS_PER_SECOND
-    )
-    cdef long long second_per_microsecond = (
-        seconds * MICROSECONDS_PER_SECOND
-    )
-    cdef long long total_microseconds = (
-        hour_per_microsecond +
-        minute_per_microsecond +
-        second_per_microsecond +
+    cdef:
+        long long total_microseconds
+        int days, months
+
+    months = dtype_value.months or 0
+    days = dtype_value.days or 0
+    hours = dtype_value.hours or 0
+    minutes = dtype_value.minutes or 0
+    seconds = dtype_value.seconds or 0
+    microseconds = dtype_value.microseconds or 0
+    total_microseconds = (
+        hours * 3600 * 1_000_000 +
+        minutes * 60 * 1_000_000 +
+        seconds * 1_000_000 +
         microseconds
     )
     return pack("!qii", total_microseconds, days, months)

@@ -35,14 +35,12 @@ cpdef str read_macaddr(
     cdef long i
     cdef long data_len = len(binary_data)
     cdef const unsigned char[:] view = binary_data
-    cdef list parts = []
-
-    parts.reserve(data_len)
+    cdef list parts = [None] * data_len
 
     for i in range(data_len):
-        parts.append(f"{view[i]:02x}")
+        parts[i] = f"{view[i]:02x}"
 
-    return ":".join(parts).upper()
+    return ":".join(parts).lower()
 
 
 cpdef bytes write_macaddr(
@@ -65,22 +63,38 @@ cpdef str read_bits(
     """Unpack bit and varbit value."""
 
     cdef unsigned int length
-    cdef const unsigned char[:] view = binary_data
     cdef long data_len = len(binary_data)
-    cdef long bit_data_len = data_len - 4
+    cdef long bit_data_len
     cdef list bits = []
     cdef short i, j
     cdef unsigned char byte_val
 
-    length = (view[0] << 24) | (view[1] << 16) | (view[2] << 8) | view[3]
-    bits.reserve(bit_data_len * 8)
+    if data_len < 4:
+        return ""
+
+    length = (
+        (binary_data[0] << 24) |
+        (binary_data[1] << 16) |
+        (binary_data[2] << 8) |
+        binary_data[3]
+    )
+    
+    if data_len < 4 + (length + 7) // 8:
+        return ""
 
     for i in range(4, data_len):
-        byte_val = view[i]
-        for j in range(7, -1, -1):
+        byte_val = binary_data[i]
+        bits_left = length - (i - 4) * 8
+
+        if bits_left <= 0:
+            break
+
+        bits_to_read = min(8, bits_left)
+
+        for j in range(7, 7 - bits_to_read, -1):
             bits.append(str((byte_val >> j) & 1))
 
-    return "".join(bits)[:length]
+    return "".join(bits)
 
 
 cpdef bytes write_bits(
@@ -90,12 +104,28 @@ cpdef bytes write_bits(
     object pgoid = None,
 ):
     """Pack bit and varbit value."""
+    
+    cdef unsigned int length = len(dtype_value)
+    cdef unsigned int byte_length = (length + 7) // 8
+    cdef bytes result
+    cdef int i, j
+    cdef unsigned char byte_val
+    cdef list bytes_list = []
 
-    cdef long bit_length = len(dtype_value)
-    cdef long byte_length = (bit_length + 7) // 8
-    cdef int int_value = int(dtype_value, 2)
+    bytes_list.append((length >> 24) & 0xFF)
+    bytes_list.append((length >> 16) & 0xFF)
+    bytes_list.append((length >> 8) & 0xFF)
+    bytes_list.append(length & 0xFF)
 
-    return int_value.to_bytes(byte_length, "big")
+    for i in range(byte_length):
+        byte_val = 0
+        for j in range(8):
+            bit_pos = i * 8 + j
+            if bit_pos < length and dtype_value[bit_pos] == "1":
+                byte_val |= (1 << (7 - j))
+        bytes_list.append(byte_val)
+
+    return bytes(bytes_list)
 
 
 cpdef bytes read_bytea(

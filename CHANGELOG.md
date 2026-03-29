@@ -1,5 +1,27 @@
 # Version History
 
+## 0.2.4.dev1
+
+* Developer release (not public to pip)
+* Add pytest coverage
+* Add flatten helper for nested arrays
+* Add error handling for empty files in PGCopyReader
+* Add comprehensive tests for all 32 data types including arrays and edge cases
+* Decompose project structure
+* Fix read_int8 overflow for maximum int64 values
+* Fix read_bits and write_bits functions (add length prefix (4 bytes) and proper bit packing)
+* Fix read_macaddr (return lowercase string to match PostgreSQL output format)
+* Fix read_path and write_path (change closed flag from 1 byte to 4 bytes)
+* Fix read_polygon and write_polygon (correct point coordinates reading)
+* Fix write_timestamptz (proper timezone conversion to UTC)
+* Fix empty arrays handling (write valid PostgreSQL array header with zero dimension)
+* Fix NULL array elements (use 0xFFFFFFFF marker)
+* Improve read_array and write_array to support multidimensional arrays
+* Refactor PGCopyReader and PGCopyWriter
+* Remove Cython source code from wheel package
+* Change PGCopyReader and PGCopyWriter `__repr__`() method
+
+
 ## 0.2.4.dev0
 
 * Developer release (not public to pip)

@@ -6,69 +6,68 @@ from Cython.Build import cythonize
 
 extensions = [
     Extension(
-        "pgcopylib.common.base",
-        ["src/pgcopylib/common/base.pyx"],
+        "pgcopylib.core.functions",
+        ["src/pgcopylib/core/functions.pyx"],
     ),
     Extension(
-        "pgcopylib.common.dtypes.functions.arrays",
-        ["src/pgcopylib/common/dtypes/functions/arrays.pyx"],
+        "pgcopylib.core.types.arrays",
+        ["src/pgcopylib/core/types/arrays.pyx"],
     ),
     Extension(
-        "pgcopylib.common.dtypes.functions.dates",
-        ["src/pgcopylib/common/dtypes/functions/dates.pyx"],
+        "pgcopylib.core.types.dates",
+        ["src/pgcopylib/core/types/dates.pyx"],
     ),
     Extension(
-        "pgcopylib.common.dtypes.functions.digits",
-        ["src/pgcopylib/common/dtypes/functions/digits.pyx"],
+        "pgcopylib.core.types.digits",
+        ["src/pgcopylib/core/types/digits.pyx"],
     ),
     Extension(
-        "pgcopylib.common.dtypes.functions.geometrics",
-        ["src/pgcopylib/common/dtypes/functions/geometrics.pyx"],
+        "pgcopylib.core.types.geometrics",
+        ["src/pgcopylib/core/types/geometrics.pyx"],
     ),
     Extension(
-        "pgcopylib.common.dtypes.functions.ipaddrs",
-        ["src/pgcopylib/common/dtypes/functions/ipaddrs.pyx"],
+        "pgcopylib.core.types.ipaddrs",
+        ["src/pgcopylib/core/types/ipaddrs.pyx"],
     ),
     Extension(
-        "pgcopylib.common.dtypes.functions.jsons",
-        ["src/pgcopylib/common/dtypes/functions/jsons.pyx"],
+        "pgcopylib.core.types.jsons",
+        ["src/pgcopylib/core/types/jsons.pyx"],
     ),
     Extension(
-        "pgcopylib.common.dtypes.functions.strings",
-        ["src/pgcopylib/common/dtypes/functions/strings.pyx"],
+        "pgcopylib.core.types.strings",
+        ["src/pgcopylib/core/types/strings.pyx"],
     ),
     Extension(
-        "pgcopylib.common.dtypes.functions.uuids",
-        ["src/pgcopylib/common/dtypes/functions/uuids.pyx"],
+        "pgcopylib.core.types.uuids",
+        ["src/pgcopylib/core/types/uuids.pyx"],
     ),
 ]
 
 setup(
     name="pgcopylib",
-    version="0.2.4.dev0",
+    version="0.2.4.dev1",
     package_dir={"": "src"},
     ext_modules=cythonize(extensions, language_level="3"),
     packages=[
         "pgcopylib",
         "pgcopylib.common",
-        "pgcopylib.common.dtypes.functions",
+        "pgcopylib.core",
+        "pgcopylib.core.types",
     ],
     package_data={
         "pgcopylib": [
             "**/*.py",
-            "**/*.pyx",
+            "**/*.pyd",
             "**/*.pyi",
-            "**/*.pxd",
             "*.py",
-            "*.pxd",
             "*.pyd",
             "*.md",
             "*.txt",
         ]
     },
     exclude_package_data={
-        "": ["*.c"],
-        "pgcopylib": ["**/*.c"],
+        "": ["*.c", "*.pxd", "*.pyx"],
+        "pgcopylib": ["**/*.c", "**/*.pxd", "**/*.pyx"],
     },
     include_package_data=True,
     setup_requires=["Cython>=0.29.33"],

@@ -1,3 +1,4 @@
+# arrays.pyx
 from cpython cimport PyBytes_AsString
 from struct import (
     pack,
@@ -23,7 +24,7 @@ cdef list recursive_elements(list elements, list array_struct):
 
     if elements_len == chunk:
         return recursive_elements(elements, array_struct)
-    
+
     num_chunks = (elements_len + chunk - 1) // chunk
 
     for _i in range(num_chunks):
@@ -32,6 +33,7 @@ cdef list recursive_elements(list elements, list array_struct):
 
         if end > elements_len:
             end = elements_len
+
         result.append(elements[start:end])
 
     return recursive_elements(result, array_struct)
@@ -65,15 +67,33 @@ cdef object _reader(object buffer_object, object pgoid_function):
     """Read array record."""
 
     cdef bytes _bytes = buffer_object.read(4)
+
+    if len(_bytes) < 4:
+        return None
+
     cdef const unsigned char *buf = <const unsigned char*>PyBytes_AsString(
-        _bytes
+        _bytes,
     )
     cdef int length = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3]
 
-    if length == 0xffffffff:
-        return
+    if length == -1:
+        return None
 
     return pgoid_function(buffer_object.read(length))
+
+
+cdef list _flatten_list(list lst, list result):
+    """Flatten nested list into flat list."""
+
+    cdef object item
+
+    for item in lst:
+        if isinstance(item, list):
+            _flatten_list(item, result)
+        else:
+            result.append(item)
+
+    return result
 
 
 cpdef list read_array(
@@ -84,22 +104,46 @@ cpdef list read_array(
 ):
     """Unpack array values."""
 
-    cdef unsigned int num_dim, _, oid
-    cdef list array_struct = []
-    cdef list array_elements = []
+    cdef:
+        unsigned int num_dim, has_null, oid
+        list array_struct = []
+        list array_elements = []
+        int i
+        int total_elements
+
+    if len(binary_data) == 0:
+        return []
 
     buffer_object.write(binary_data)
     buffer_object.seek(0)
-    num_dim, _, oid = unpack("!3I", buffer_object.read(12))
+    header = buffer_object.read(12)
 
-    for _ in range(num_dim):
-        array_struct.append(unpack("!2I", buffer_object.read(8))[0])
+    if len(header) < 12:
+        buffer_object.seek(0)
+        buffer_object.truncate()
+        return []
 
-    for _ in range(prod(array_struct)):
+    num_dim, has_null, oid = unpack("!3I", header)
+
+    for i in range(num_dim):
+        dim_data = buffer_object.read(8)
+
+        if len(dim_data) < 8:
+            break
+
+        array_struct.append(unpack("!2I", dim_data)[0])
+
+    total_elements = prod(array_struct) if array_struct else 0
+
+    for i in range(total_elements):
         array_elements.append(_reader(buffer_object, pgoid_function))
 
     buffer_object.seek(0)
     buffer_object.truncate()
+
+    if not array_struct:
+        return array_elements
+
     return recursive_elements(array_elements, array_struct)
 
 
@@ -111,42 +155,40 @@ cpdef bytes write_array(
 ):
     """Pack array values."""
 
-    cdef list num_dim = get_num_dim(dtype_value)
-    cdef short is_nullable, dim, dim_length = len(num_dim)
-    cdef list expand_values, dimensions = []
-    cdef object value
-    cdef short length_dimensions
-    cdef bytes binary_data
-    cdef bint has_list = True
+    cdef:
+        list num_dim = get_num_dim(dtype_value)
+        int dim_length = len(num_dim)
+        int has_null = 0
+        list flat_values = []
+        list dimensions = []
+        int dim
+        object value
+        bytes binary_data
+        int i
 
-    while has_list:
-        has_list = False
-        expand_values = []
+    if not dtype_value:
+        buffer_object.write(pack("!3I", 1, 0, pgoid))
+        buffer_object.write(pack("!2I", 0, 1))
+        binary_data = buffer_object.getvalue()
+        buffer_object.seek(0)
+        buffer_object.truncate()
+        return binary_data
 
-        for value in dtype_value:
-            if isinstance(value, list):
-                has_list = True
-                expand_values.extend(value)
-            else:
-                expand_values.append(value)
+    flat_values = _flatten_list(dtype_value, [])
 
-        dtype_value = expand_values
-
-    is_nullable = False
-    for value in dtype_value:
+    for value in flat_values:
         if value is None:
-            is_nullable = True
+            has_null = 1
             break
 
     for dim in num_dim:
-        dimensions.extend([dim, 1])
+        dimensions.append(dim)
+        dimensions.append(1)
 
-    length_dimensions = len(dimensions)
+    buffer_object.write(pack("!3I", dim_length, has_null, pgoid))
+    buffer_object.write(pack("!%dI" % (dim_length * 2), *dimensions))
 
-    buffer_object.write(pack("!3I", dim_length, is_nullable, pgoid))
-    buffer_object.write(pack("!%dI" % length_dimensions, *dimensions))
-
-    for value in dtype_value:
+    for value in flat_values:
         if value is None:
             buffer_object.write(NULLABLE)
         else:

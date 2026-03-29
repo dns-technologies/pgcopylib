@@ -275,45 +275,60 @@ cpdef object read_numeric(
     object pgoid = None,
 ):
     """Unpack numeric value."""
-
+    
     cdef:
         int ndigits, weight, sign, dscale
         int i, pos
         bint is_negative
         list digits = []
-        object numeric, scale, power, term
+        object result
         short digit
+
+    if len(binary_data) < 8:
+        return Decimal(0)
 
     ndigits, weight, sign, dscale = unpack_from("!hhhh", binary_data)
 
     if sign == 0xc000:
-        return Decimal("nan")
+        return Decimal("NaN")
 
     is_negative = (sign == 0x4000)
 
-    cdef int data_len = len(binary_data)
-
     for i in range(8, 8 + ndigits * 2, 2):
-        if i + 1 < data_len:
+        if i + 1 < len(binary_data):
             digit = unpack_from("!h", binary_data, i)[0]
             digits.append(digit)
 
-    numeric = Decimal(0)
-    scale = Decimal(10) ** -dscale
-
-    cdef object weight_dec = Decimal(weight)
-    cdef object ten = Decimal(10)
-    cdef object four = Decimal(4)
-
-    for pos, digit in enumerate(digits):
-        power = four * (weight_dec - Decimal(pos))
-        term = Decimal(digit) * (ten ** power)
-        numeric += term
-
+    result_str = ""
     if is_negative:
-        numeric *= -1
+        result_str += "-"
 
-    return numeric.quantize(scale)
+    if weight >= 0:
+        for j in range(weight + 1):
+            if j < len(digits):
+                result_str += str(digits[j])
+            else:
+                result_str += "0"
+    else:
+        result_str += "0"
+
+    if dscale > 0 or len(digits) > weight + 1:
+        result_str += "."
+        for j in range(weight + 1, len(digits)):
+            result_str += (
+                str(digits[j]).zfill(4)
+                if j > weight + 1
+                else str(digits[j])
+            )
+
+        current_dscale = len(
+            result_str.split(".")[1]
+        ) if "." in result_str else 0
+
+        if current_dscale < dscale:
+            result_str += "0" * (dscale - current_dscale)
+
+    return Decimal(result_str)
 
 
 cpdef bytes write_numeric(
@@ -323,13 +338,15 @@ cpdef bytes write_numeric(
     object pgoid = None,
 ):
     """Pack numeric value."""
-
-    cdef bint is_negative
-    cdef int sign, dscale, ndigits, weight, digit
-    cdef object abs_value, scaled_value, int_value
-    cdef list digits = []
-    cdef list digit_bytes_list = []
-    cdef bytes header, digits_data
+    
+    cdef:
+        bint is_negative
+        int sign, dscale, ndigits, weight
+        int digit
+        object abs_value
+        list digits = []
+        str value_str
+        str int_part, frac_part
 
     dtype_value = Decimal(dtype_value)
 
@@ -338,40 +355,35 @@ cpdef bytes write_numeric(
 
     is_negative = dtype_value < 0
     sign = 0x4000 if is_negative else 0x0000
-
-    if dtype_value == 0:
-        return pack("!hhhh", 0, 0, sign, 0)
-
     abs_value = abs(dtype_value)
-    as_tuple = abs_value.as_tuple()
-    dscale = abs(as_tuple.exponent) if as_tuple.exponent < 0 else 0
-    scaled_value = abs_value * (Decimal(10) ** dscale)
-    int_value = int(scaled_value.to_integral_value(rounding=ROUND_HALF_UP))
-    temp = int_value
-    base = 10000
+    value_str = format(abs_value, "f")
 
-    while temp > 0:
-        digits.append(temp % base)
-        temp //= base
-
-    if not digits:
-        digits = [0]
+    if "." in value_str:
+        int_part, frac_part = value_str.split(".")
     else:
-        digits.reverse()
+        int_part, frac_part = value_str, ""
 
-    ndigits = len(digits)
+    dscale = len(frac_part)
+    int_part = int_part.lstrip("0") or "0"
+    int_digits = []
 
-    if int_value == 0:
-        weight = 0
-    else:
-        integer_digits = len(str(int(abs_value)))
-        weight = (integer_digits - 1) // 4
+    for i in range(0, len(int_part), 4):
+        group = int_part[i:i+4]
+        int_digits.append(int(group))
 
+    frac_digits = []
+
+    for i in range(0, len(frac_part), 4):
+        group = frac_part[i:i+4].ljust(4, "0")
+        frac_digits.append(int(group))
+
+    all_digits = int_digits + frac_digits
+    ndigits = len(all_digits)
+    weight = len(int_digits) - 1 if int_digits else -1
     header = pack("!hhhh", ndigits, weight, sign, dscale)
+    digit_bytes = b""
 
-    for digit in digits:
-        digit_bytes_list.append(pack("!h", digit))
+    for digit in all_digits:
+        digit_bytes += pack("!h", digit)
 
-    digits_data = b''.join(digit_bytes_list)
-
-    return header + digits_data
+    return header + digit_bytes

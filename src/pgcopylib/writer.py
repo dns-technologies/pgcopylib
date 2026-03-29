@@ -1,36 +1,45 @@
+from collections.abc import (
+    Generator,
+    Iterable,
+)
 from io import (
     BytesIO,
     BufferedWriter,
 )
-from typing import (
-    Any,
-    Generator,
-    TYPE_CHECKING,
-)
+from types import FunctionType
+from typing import Any
 
 from .common import (
     ArrayOidToOid,
     PGOid,
     PGCopyRecordError,
     PGOidToDType,
+    pgcopylib_repr,
 )
-from .common.base import (
+from .core.dtype import PostgreSQLDtype
+from .core.functions import (
     make_rows,
     nullable_writer,
     writer,
 )
 
-if TYPE_CHECKING:
-    from types import FunctionType
-    from .common.dtypes import PostgreSQLDtype
-
 
 class PGCopyWriter:
     """PGCopy dump writer."""
 
+    fileobj: BufferedWriter
+    pgtypes: list[PGOid]
+    pgoid: list[int]
+    pgoid_functions: list[FunctionType]
+    postgres_dtype: list[PostgreSQLDtype]
+    num_columns: int
+    num_rows: int
+    buffer_object: BytesIO
+    pos: int
+
     def __init__(
         self,
-        file: BufferedWriter | None,
+        fileobj: BufferedWriter | None,
         pgtypes: list[PGOid],
     ) -> None:
         """Class initialization."""
@@ -38,7 +47,7 @@ class PGCopyWriter:
         if not pgtypes:
             raise PGCopyRecordError("PGOids not defined!")
 
-        self.file = file
+        self.fileobj = fileobj
         self.pgtypes = pgtypes
         self.num_columns = len(pgtypes)
         self.num_rows = 0
@@ -63,7 +72,10 @@ class PGCopyWriter:
         ]
         self.buffer_object = BytesIO()
 
-    def write_row(self, dtype_values: Any) -> Generator[Any, None, None]:
+    def write_row(
+        self,
+        dtype_values: list[Any] | tuple[Any],
+    ) -> Generator[bytes, None, None]:
         """Write single row."""
 
         for postgres_dtype, dtype_value, pgoid_function, pgoid in zip(
@@ -81,11 +93,10 @@ class PGCopyWriter:
             )
         self.num_rows += 1
 
-    def from_rows(self, dtype_values: list[Any]) -> Generator[
-        bytes,
-        None,
-        None,
-    ]:
+    def from_rows(
+        self,
+        dtype_values: Iterable[list[Any] | tuple[Any]],
+    ) -> Generator[bytes, None, None]:
         """Write all rows."""
 
         return make_rows(self.write_row, dtype_values, self.num_columns)
@@ -93,11 +104,11 @@ class PGCopyWriter:
     def write(self, dtype_values: list[Any]) -> None:
         """Write all rows into file."""
 
-        if self.file is None:
+        if self.fileobj is None:
             raise PGCopyRecordError("File not defined!")
 
         self.pos = writer(
-            self.file,
+            self.fileobj,
             self.write_row,
             dtype_values,
             self.num_columns,
@@ -111,45 +122,16 @@ class PGCopyWriter:
     def close(self) -> None:
         """Close file object."""
 
-        if self.file:
-            self.file.close()
+        if self.fileobj:
+            if hasattr(self.fileobj, "close"):
+                self.fileobj.close()
 
     def __repr__(self) -> str:
-        """PGCopy info in interpreter."""
+        """String representation of PGCopyWriter."""
 
-        return self.__str__()
-
-    def __str__(self) -> str:
-        """PGCopy info."""
-
-        def to_col(text: str) -> str:
-            """Format string element."""
-
-            text = text[:14] + "…" if len(text) > 15 else text
-            return f" {text: <15} "
-
-        empty_line = (
-            "├─────────────────┼─────────────────┤"
+        return pgcopylib_repr(
+            self.pgtypes,
+            self.num_columns,
+            self.num_rows,
+            "writer",
         )
-        end_line = (
-            "└─────────────────┴─────────────────┘"
-        )
-        _str = [
-            "<PGCopy dump writer>",
-            "┌─────────────────┬─────────────────┐",
-            "│ Column Number   │ PostgreSQL Type │",
-            "╞═════════════════╪═════════════════╡",
-        ]
-
-        for column, pgtype in zip(range(self.num_columns), self.pgtypes):
-            _str.append(
-                f"│{to_col(f'Column_{column}')}│{to_col(pgtype.name)}│",
-            )
-            _str.append(empty_line)
-
-        _str[-1] = end_line
-
-        return "\n".join(_str) + f"""
-Total columns: {self.num_columns}
-Total rows: {self.num_rows}
-"""
