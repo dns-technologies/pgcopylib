@@ -121,22 +121,42 @@ cpdef bytes nullable_writer(
 
 def make_rows(object write_row, object dtype_values, long num_columns):
     """Make pgcopy rows."""
-
-    cdef list bytes_buffer = [HEADER]
-    cdef bytes num_columns_bytes = bytes([
-        (num_columns >> 8) & 0xFF,
-        num_columns & 0xFF
-    ])
+    
+    cdef:
+        list bytes_buffer = [HEADER]
+        bytes num_columns_bytes = bytes([
+            (num_columns >> 8) & 0xFF,
+            num_columns & 0xFF
+        ])
+        size_t current_size = len(HEADER)
+        size_t chunk_size = 8192
+        bytes row, full_chunk, remaining
+        size_t pos
 
     for dtype_value in dtype_values:
         bytes_buffer.append(num_columns_bytes)
+        current_size += len(num_columns_bytes)
 
         for row in write_row(dtype_value):
             bytes_buffer.append(row)
+            current_size += len(row)
 
-        if len(bytes_buffer) > 1024:
-            yield b"".join(bytes_buffer)
-            bytes_buffer.clear()
+            if current_size >= chunk_size:
+                full_chunk = b"".join(bytes_buffer)
+                pos = 0
+
+                while pos + chunk_size <= len(full_chunk):
+                    yield full_chunk[pos:pos + chunk_size]
+                    pos += chunk_size
+
+                remaining = full_chunk[pos:]
+                bytes_buffer.clear()
+
+                if remaining:
+                    bytes_buffer.append(remaining)
+                    current_size = len(remaining)
+                else:
+                    current_size = 0
 
     bytes_buffer.append(FINALIZE)
     yield b"".join(bytes_buffer)

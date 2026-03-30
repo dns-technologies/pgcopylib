@@ -22,6 +22,7 @@
 * Change PGCopyReader and PGCopyWriter `__repr__`() method
 * Improve write_text() function
 * Improve write float("nan") as None into not float data types
+* Refactor make_rows() function for fixed 8 kb chunk size
 
 ## 0.2.4.dev0
 
