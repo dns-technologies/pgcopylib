@@ -103,6 +103,12 @@ cpdef bytes nullable_writer(
     if dtype_value is None:
         return NULLABLE
 
+    if (
+        dtype_value != dtype_value
+        and "float" not in dtype_value.__class__.__name__
+    ):
+        return NULLABLE
+
     cdef bytes binary_data = write_dtype(
         dtype_value,
         pgoid_function,

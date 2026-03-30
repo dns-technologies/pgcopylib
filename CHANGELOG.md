@@ -20,6 +20,8 @@
 * Refactor PGCopyReader and PGCopyWriter
 * Remove Cython source code from wheel package
 * Change PGCopyReader and PGCopyWriter `__repr__`() method
+* Improve write_text() function
+* Improve write float("nan") as None into not float data types
 
 ## 0.2.4.dev0
 

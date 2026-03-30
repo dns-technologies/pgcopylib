@@ -5,7 +5,7 @@ cpdef str read_text(
     object pgoid=*,
 )
 cpdef bytes write_text(
-    str dtype_value,
+    object dtype_value,
     object pgoid_function=*,
     object buffer_object=*,
     object pgoid=*,

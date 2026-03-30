@@ -10,7 +10,7 @@ cpdef str read_text(
 
 
 cpdef bytes write_text(
-    str dtype_value,
+    object dtype_value,
     object pgoid_function = None,
     object buffer_object = None,
     object pgoid = None,
