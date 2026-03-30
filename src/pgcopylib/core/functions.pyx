@@ -105,7 +105,7 @@ cpdef bytes nullable_writer(
 
     if (
         dtype_value != dtype_value
-        and "float" not in dtype_value.__class__.__name__
+        and "float" not in write_dtype.__class__.__name__
     ):
         return NULLABLE
 
